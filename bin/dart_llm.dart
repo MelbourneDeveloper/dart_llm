@@ -444,17 +444,16 @@ static Tensor gelu(Tensor a) {
   }
 
   static void _unravel(int idx, List<int> strides, List<int> outIdx) {
+    // Compute row-major multi-dimensional indices from a flat index using strides.
+    // For strides computed as: strides[i] = product(shape[i+1..end]),
+    // the index along dimension i is floor(idx / strides[i]) and then idx %= strides[i].
     for (int i = 0; i < strides.length; i++) {
       final s = strides[i];
-      outIdx[i] = (idx ~/ s) % (i == strides.length - 1 ? 1 : 1 << 30);
-    }
-    for (int i = 0; i < outIdx.length; i++) {
-      final dim = i < strides.length - 1 ? strides[i] ~/ strides[i + 1] : 0;
-      if (i == outIdx.length - 1) {
-        outIdx[i] = idx % (strides[i] == 0 ? 1 : strides[i]);
+      if (s == 0) {
+        outIdx[i] = 0;
       } else {
-        final div = strides[i + 1];
-        outIdx[i] = (idx ~/ div) % (strides[i] ~/ div);
+        outIdx[i] = idx ~/ s;
+        idx = idx % s;
       }
     }
   }
@@ -989,15 +988,20 @@ class ByteTokenizer {
 }
 
 List<List<Int32List>> makeBatches(Int32List data, int block, int batch, Random rng) {
+  if (data.length < 2) {
+    throw StateError('Not enough data to create input/target pairs (length=${data.length}).');
+  }
+  final effBlock = min(block, data.length - 1);
   final xs = <Int32List>[];
   final ys = <Int32List>[];
+  final maxStartExclusive = max(1, data.length - effBlock - 1);
   for (int b = 0; b < batch; b++) {
-    final i = rng.nextInt(data.length - block - 1);
-    final x = Int32List(block);
-    final y = Int32List(block);
-    for (int t = 0; t < block; t++) {
-      x[t] = data[i + t];
-      y[t] = data[i + t + 1];
+    final start = maxStartExclusive == 1 ? 0 : rng.nextInt(maxStartExclusive);
+    final x = Int32List(effBlock);
+    final y = Int32List(effBlock);
+    for (int t = 0; t < effBlock; t++) {
+      x[t] = data[start + t];
+      y[t] = data[start + t + 1];
     }
     xs.add(x);
     ys.add(y);

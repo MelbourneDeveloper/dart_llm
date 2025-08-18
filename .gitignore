@@ -1,3 +1,11 @@
 # https://dart.dev/guides/libraries/private-files
 # Created by `dart pub`
 .dart_tool/
+
+bin/dart_llm.dart
+
+model.json
+training.log
+checkpoint.json
+
+.DS_Store
